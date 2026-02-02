@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  ArrowRight,
   ExternalLink,
   Plus,
   Search,
+  RefreshCw,
 } from "lucide-react";
+import { ItemDetailDrawer } from "@/components/ItemDetailDrawer";
 
 // Types
 type Status = "pending" | "in-progress" | "approved" | "rejected";
@@ -26,56 +27,6 @@ interface MissionItem {
   link?: string;
   notes?: string;
 }
-
-// Sample data
-const initialItems: MissionItem[] = [
-  {
-    id: "1",
-    title: "Lead Nurturing Email Sequence",
-    description: "5-email cold outreach sequence with n8n workflow automation",
-    category: "workflow",
-    status: "pending",
-    created: "2026-02-02",
-    updated: "2026-02-02",
-    notes: "Based on Drive templates, optimized for cold email",
-  },
-  {
-    id: "2",
-    title: "Mission Control Dashboard",
-    description: "Next.js dashboard with shadcn/ui for reviewing/approving work",
-    category: "feature",
-    status: "in-progress",
-    created: "2026-02-02",
-    updated: "2026-02-02",
-  },
-  {
-    id: "3",
-    title: "Morning Briefing System",
-    description: "Daily 8am briefing with weather, tasks, news, and productivity tips",
-    category: "automation",
-    status: "approved",
-    created: "2026-02-01",
-    updated: "2026-02-01",
-  },
-  {
-    id: "4",
-    title: "AI Agents Research Report",
-    description: "Deep dive on AI agents for customer follow-up automation",
-    category: "research",
-    status: "approved",
-    created: "2026-02-01",
-    updated: "2026-02-01",
-  },
-  {
-    id: "5",
-    title: "Lead Intelligence Tool",
-    description: "Enrich leads with Apollo/Clearbit data for qualification",
-    category: "feature",
-    status: "pending",
-    created: "2026-02-02",
-    updated: "2026-02-02",
-  },
-];
 
 const statusConfig = {
   pending: {
@@ -117,9 +68,49 @@ const categoryColors = {
 };
 
 export default function MissionControl() {
-  const [items] = useState<MissionItem[]>(initialItems);
+  const [items, setItems] = useState<MissionItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Status | "all">("all");
   const [search, setSearch] = useState("");
+  const [selectedItem, setSelectedItem] = useState<MissionItem | null>(null);
+
+  // Fetch items from API
+  const fetchItems = useCallback(async () => {
+    try {
+      const res = await fetch("/api/items");
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch items:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initial fetch + polling every 10 seconds
+  useEffect(() => {
+    fetchItems();
+    const interval = setInterval(fetchItems, 10000);
+    return () => clearInterval(interval);
+  }, [fetchItems]);
+
+  // Handle status change
+  const handleStatusChange = async (id: string, status: Status) => {
+    try {
+      const res = await fetch("/api/items", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+      if (res.ok) {
+        fetchItems(); // Refresh after change
+      }
+    } catch (error) {
+      console.error("Failed to update status:", error);
+    }
+  };
 
   const filteredItems = items.filter((item) => {
     const matchesFilter = filter === "all" || item.status === filter;
@@ -203,6 +194,14 @@ export default function MissionControl() {
           </button>
         </div>
 
+        {/* Loading indicator */}
+        {loading && (
+          <div className="flex items-center justify-center py-4 text-muted-foreground">
+            <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+            Loading items...
+          </div>
+        )}
+
         {/* Items Grid */}
         <div className="grid gap-6">
           {["pending", "in-progress", "approved"].map((status) => {
@@ -226,7 +225,8 @@ export default function MissionControl() {
                   {statusItems.map((item) => (
                     <div
                       key={item.id}
-                      className={`bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors`}
+                      className={`bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors cursor-pointer`}
+                      onClick={() => setSelectedItem(item)}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -257,10 +257,22 @@ export default function MissionControl() {
                         <div className="flex items-center gap-2 ml-4">
                           {item.status === "pending" && (
                             <>
-                              <button className="bg-green-500/20 text-green-500 px-3 py-1 rounded text-sm hover:bg-green-500/30">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStatusChange(item.id, "approved");
+                                }}
+                                className="bg-green-500/20 text-green-500 px-3 py-1 rounded text-sm hover:bg-green-500/30"
+                              >
                                 Approve
                               </button>
-                              <button className="bg-red-500/20 text-red-500 px-3 py-1 rounded text-sm hover:bg-red-500/30">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStatusChange(item.id, "rejected");
+                                }}
+                                className="bg-red-500/20 text-red-500 px-3 py-1 rounded text-sm hover:bg-red-500/30"
+                              >
                                 Reject
                               </button>
                             </>
@@ -271,6 +283,7 @@ export default function MissionControl() {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-muted-foreground hover:text-foreground"
+                              onClick={(e) => e.stopPropagation()}
                             >
                               <ExternalLink className="w-4 h-4" />
                             </a>
@@ -284,6 +297,14 @@ export default function MissionControl() {
             );
           })}
         </div>
+
+        {/* Detail Drawer */}
+        <ItemDetailDrawer
+          item={selectedItem}
+          isOpen={!!selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onStatusChange={handleStatusChange}
+        />
       </div>
     </div>
   );
