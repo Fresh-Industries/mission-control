@@ -9,11 +9,15 @@ function getPool(): Pool {
   if (!pool) {
     const databaseUrl = process.env.DATABASE_URL;
     if (!databaseUrl) {
-      throw new Error("DATABASE_URL environment variable is not set");
+      // Return a dummy pool for build time (when DATABASE_URL is not set)
+      pool = new Pool({
+        connectionString: "postgres://localhost:5432/buildtime",
+      });
+    } else {
+      pool = new Pool({
+        connectionString: databaseUrl,
+      });
     }
-    pool = new Pool({
-      connectionString: databaseUrl,
-    });
   }
   return pool;
 }

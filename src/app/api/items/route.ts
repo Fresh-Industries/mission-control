@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { getItems, updateItemStatus, addItem } from "@/data/items";
+import { getDb } from "@/lib/db";
+
+// Force dynamic rendering to avoid build-time DB connection
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    // Ensure DB is initialized
+    getDb();
     const items = await getItems();
     return NextResponse.json(items);
   } catch (error) {
