@@ -9,6 +9,7 @@ import {
   Plus,
   Search,
   RefreshCw,
+  X,
 } from "lucide-react";
 import { ItemDetailDrawer } from "@/components/ItemDetailDrawer";
 
@@ -26,6 +27,13 @@ interface MissionItem {
   updated: string;
   link?: string;
   notes?: string;
+}
+
+interface NewItemForm {
+  title: string;
+  description: string;
+  category: Category;
+  notes: string;
 }
 
 const statusConfig = {
@@ -73,6 +81,14 @@ export default function MissionControl() {
   const [filter, setFilter] = useState<Status | "all">("all");
   const [search, setSearch] = useState("");
   const [selectedItem, setSelectedItem] = useState<MissionItem | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newItem, setNewItem] = useState<NewItemForm>({
+    title: "",
+    description: "",
+    category: "feature",
+    notes: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
 
   // Fetch items from API
   const fetchItems = useCallback(async () => {
@@ -109,6 +125,29 @@ export default function MissionControl() {
       }
     } catch (error) {
       console.error("Failed to update status:", error);
+    }
+  };
+
+  const handleAddItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newItem.title.trim()) return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newItem),
+      });
+      if (res.ok) {
+        setShowAddModal(false);
+        setNewItem({ title: "", description: "", category: "feature", notes: "" });
+        fetchItems();
+      }
+    } catch (error) {
+      console.error("Failed to add item:", error);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -188,7 +227,10 @@ export default function MissionControl() {
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
-          <button className="bg-primary text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary/90">
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary/90"
+          >
             <Plus className="w-4 h-4" />
             Add Item
           </button>
@@ -297,6 +339,94 @@ export default function MissionControl() {
             );
           })}
         </div>
+
+        {/* Add Item Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-card border border-border rounded-lg w-full max-w-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-foreground">Add New Item</h2>
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <form onSubmit={handleAddItem} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={newItem.title}
+                    onChange={(e) => setNewItem({ ...newItem, title: e.target.value })}
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="Enter title..."
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={newItem.description}
+                    onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                    placeholder="Enter description..."
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={newItem.category}
+                    onChange={(e) => setNewItem({ ...newItem, category: e.target.value as Category })}
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="feature">Feature</option>
+                    <option value="workflow">Workflow</option>
+                    <option value="template">Template</option>
+                    <option value="research">Research</option>
+                    <option value="automation">Automation</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Notes / Context
+                  </label>
+                  <textarea
+                    value={newItem.notes}
+                    onChange={(e) => setNewItem({ ...newItem, notes: e.target.value })}
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                    placeholder="Add notes, context, research findings..."
+                    rows={4}
+                  />
+                </div>
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="bg-background border border-border px-4 py-2 rounded-lg text-foreground hover:bg-muted"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting || !newItem.title.trim()}
+                    className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {submitting ? "Adding..." : "Add Item"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Detail Drawer */}
         <ItemDetailDrawer

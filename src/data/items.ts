@@ -32,6 +32,8 @@ export async function addItem(
     .values({
       id: Date.now().toString(),
       ...item,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     })
     .returning();
   return newItem[0];
