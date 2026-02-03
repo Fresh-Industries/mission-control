@@ -1,13 +1,27 @@
 import { NextResponse } from "next/server";
 import { getItems, updateItemStatus, addItem } from "@/data/items";
 import { getDb } from "@/lib/db";
+import { seedDatabase } from "@/lib/seed";
 
 // Force dynamic rendering to avoid build-time DB connection
 export const dynamic = "force-dynamic";
 
+// Seed database on module load (runs once per server start)
+let seeded = false;
+async function ensureSeeded() {
+  if (!seeded) {
+    try {
+      await seedDatabase();
+      seeded = true;
+    } catch (error) {
+      console.error("Seed error:", error);
+    }
+  }
+}
+
 export async function GET() {
   try {
-    // Ensure DB is initialized
+    await ensureSeeded();
     getDb();
     const items = await getItems();
     return NextResponse.json(items);
@@ -22,6 +36,7 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
+    await ensureSeeded();
     const body = await request.json();
     const { id, status } = body;
 
@@ -49,6 +64,7 @@ export async function PATCH(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await ensureSeeded();
     const body = await request.json();
     const item = await addItem(body);
     return NextResponse.json(item, { status: 201 });
