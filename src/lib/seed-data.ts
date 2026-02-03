@@ -180,6 +180,95 @@ Build n8n workflow with OpenClaw integration for automated follow-up`,
 - Bulk actions (export, email)
 - Notes with @mentions for team`,
   },
+  // Templates
+  {
+    id: "temp-1",
+    title: "Cold Outreach Email Templates",
+    description: "Proven email templates for bounce house lead outreach",
+    category: "template" as const,
+    status: "pending" as const,
+    notes: `## Template Collection
+Collection of tested cold outreach emails for bounce house rental businesses.
+
+## Usage Notes
+- Personalize each email with owner name
+- Keep subject lines under 50 characters
+- A/B test subject lines weekly
+- Track reply rates per template`,
+    files: [
+      {
+        name: "intro-email.md",
+        content: `# Intro Email Template
+
+**Subject:** Quick question about {business_name}
+
+Hi {owner_name},
+
+I noticed {business_name} on Google and wanted to reach out.
+
+I help party rental businesses like yours fill more weekends using simple SMS reminders and automated follow-ups.
+
+**What if you could:**
+- Reduce no-shows by 60%?
+- Get more 5-star reviews automatically?
+- Spend less time chasing payments?
+
+I'd love to show you how InflateMate does this - no credit card required.
+
+Would you be open to a 5-minute chat this week?
+
+Best,
+[Your Name]
+
+---
+*Reply "stop" to unsubscribe*`,
+      },
+      {
+        name: "follow-up-1.md",
+        content: `# Follow-up Email (Day 4)
+
+**Subject:** {business_name} + automated reviews?
+
+Hi {owner_name},
+
+Following up on my last email - I know you're busy running {business_name}.
+
+Just wanted to share that most bounce house operators using InflateMate see:
+- **15+ more bookings/year** from automated review requests
+- **90% fewer payment disputes** with clear SMS confirmations
+
+Nothing to install. Works with your existing calendar.
+
+Want me to show you a quick demo?
+
+Best,
+[Your Name]`,
+      },
+      {
+        name: "final-outreach.md",
+        content: `# Final Outreach Email (Day 18)
+
+**Subject:** One last try - InflateMate for {business_name}
+
+Hi {owner_name},
+
+I've reached out a few times about InflateMate - I know your inbox is full.
+
+**The TL;DR:**
+Simple tool that texts customers reminders, collects reviews, and reduces no-shows. Free tier available.
+
+If this isn't a priority right now, no worries. I'll check back in next quarter.
+
+Best of luck with {business_name}!
+
+Best,
+[Your Name]
+
+---
+*P.S. - Reply "curious" if you want to see what it looks like*`,
+      },
+    ],
+  },
   // Fresh Industries
   {
     id: "fresh-1",
@@ -284,6 +373,7 @@ export async function seedInitialData() {
       category: item.category,
       status: item.status,
       notes: item.notes,
+      files: item.files || null,
       createdAt: new Date(),
       updatedAt: new Date(),
       link: null,

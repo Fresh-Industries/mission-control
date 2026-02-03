@@ -1,5 +1,10 @@
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+
+export type FileData = {
+  name: string;
+  content: string;
+};
 
 export const missionItems = pgTable("mission_items", {
   id: text("id").primaryKey(),
@@ -13,6 +18,7 @@ export const missionItems = pgTable("mission_items", {
   >(),
   notes: text("notes"),
   link: text("link"),
+  files: jsonb("files").$type<FileData[]>(),
   createdAt: timestamp("created_at", { mode: "date" }).default(
     sql`CURRENT_TIMESTAMP`
   ),

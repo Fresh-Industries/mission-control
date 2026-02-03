@@ -17,6 +17,11 @@ import { ItemDetailDrawer } from "@/components/ItemDetailDrawer";
 type Status = "pending" | "in-progress" | "approved" | "rejected";
 type Category = "feature" | "workflow" | "template" | "research" | "automation";
 
+interface FileData {
+  name: string;
+  content: string;
+}
+
 interface MissionItem {
   id: string;
   title: string;
@@ -27,6 +32,7 @@ interface MissionItem {
   updated: string;
   link?: string;
   notes?: string;
+  files?: FileData[];
 }
 
 interface NewItemForm {

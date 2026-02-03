@@ -1,7 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { X, ExternalLink, Calendar, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FileList, FileViewer } from "./FileViewer";
+
+interface FileData {
+  name: string;
+  content: string;
+}
 
 interface MissionItem {
   id: string;
@@ -13,6 +20,7 @@ interface MissionItem {
   updated: string;
   link?: string;
   notes?: string;
+  files?: FileData[];
 }
 
 interface ItemDetailDrawerProps {
@@ -50,6 +58,8 @@ export function ItemDetailDrawer({
   onClose,
   onStatusChange,
 }: ItemDetailDrawerProps) {
+  const [selectedFile, setSelectedFile] = useState<FileData | null>(null);
+
   if (!item) return null;
 
   return (
@@ -112,6 +122,14 @@ export function ItemDetailDrawer({
               {item.description}
             </p>
 
+            {/* Files */}
+            {item.files && item.files.length > 0 && (
+              <FileList
+                files={item.files}
+                onFileClick={setSelectedFile}
+              />
+            )}
+
             {/* Notes */}
             {item.notes && (
               <div className="bg-accent/50 rounded-lg p-4">
@@ -173,6 +191,12 @@ export function ItemDetailDrawer({
           )}
         </div>
       </div>
+
+      {/* File Viewer Modal */}
+      <FileViewer
+        file={selectedFile}
+        onClose={() => setSelectedFile(null)}
+      />
     </>
   );
 }

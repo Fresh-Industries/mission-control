@@ -46,3 +46,15 @@ export async function getItemById(id: string): Promise<MissionItem | null> {
     .where(eq(missionItems.id, id));
   return items[0] || null;
 }
+
+export async function updateItemNotes(
+  id: string,
+  notes: string
+): Promise<MissionItem | null> {
+  const updated = await db
+    .update(missionItems)
+    .set({ notes, updatedAt: new Date() })
+    .where(eq(missionItems.id, id))
+    .returning();
+  return updated[0] || null;
+}
