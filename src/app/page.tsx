@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Clock,
   CheckCircle2,
@@ -10,6 +10,9 @@ import {
   Search,
   RefreshCw,
   X,
+  Download,
+  Keyboard,
+  Zap,
 } from "lucide-react";
 import { ItemDetailDrawer } from "@/components/ItemDetailDrawer";
 
@@ -95,6 +98,10 @@ export default function MissionControl() {
     notes: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [keyboardHelpOpen, setKeyboardHelpOpen] = useState(false);
+  const itemRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   // Fetch items from API
   const fetchItems = useCallback(async () => {
@@ -103,6 +110,7 @@ export default function MissionControl() {
       if (res.ok) {
         const data = await res.json();
         setItems(data);
+        setLastUpdated(new Date());
       }
     } catch (error) {
       console.error("Failed to fetch items:", error);
@@ -165,6 +173,91 @@ export default function MissionControl() {
     return matchesFilter && matchesSearch;
   });
 
+  // Export to CSV
+  const handleExportCSV = () => {
+    const headers = ["Title", "Description", "Category", "Status", "Created", "Updated", "Notes", "Link"];
+    const rows = filteredItems.map((item) => [
+      item.title,
+      item.description || "",
+      item.category,
+      item.status,
+      item.created,
+      item.updated,
+      item.notes || "",
+      item.link || "",
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `mission-items-${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      const allItems = filteredItems;
+      const currentIndex = selectedIndex;
+
+      switch (e.key) {
+        case "j":
+        case "ArrowDown":
+          e.preventDefault();
+          setSelectedIndex(Math.min(currentIndex + 1, allItems.length - 1));
+          break;
+        case "k":
+        case "ArrowUp":
+          e.preventDefault();
+          setSelectedIndex(Math.max(currentIndex - 1, 0));
+          break;
+        case "Enter":
+          e.preventDefault();
+          if (allItems[currentIndex]) {
+            setSelectedItem(allItems[currentIndex]);
+          }
+          break;
+        case "n":
+          e.preventDefault();
+          setShowAddModal(true);
+          break;
+        case "Escape":
+          e.preventDefault();
+          setSelectedItem(null);
+          setKeyboardHelpOpen(false);
+          break;
+        case "?":
+          e.preventDefault();
+          setKeyboardHelpOpen(true);
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [filteredItems, selectedIndex]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    const selectedId = filteredItems[selectedIndex]?.id;
+    if (selectedId && itemRefs.current[selectedId]) {
+      itemRefs.current[selectedId]?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [selectedIndex, filteredItems]);
+
   const pendingItems = items.filter((i) => i.status === "pending");
   const inProgressItems = items.filter((i) => i.status === "in-progress");
   const approvedItems = items.filter((i) => i.status === "approved");
@@ -174,12 +267,38 @@ export default function MissionControl() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">
-            Mission Control
-          </h1>
-          <p className="text-muted-foreground">
-            Fresh Industries — Review, Approve, Deploy
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold text-foreground mb-2">
+                Mission Control
+              </h1>
+              <p className="text-muted-foreground">
+                Fresh Industries — Review, Approve, Deploy
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {lastUpdated && (
+                <span className="text-xs text-muted-foreground">
+                  Last updated: {lastUpdated.toLocaleTimeString()}
+                </span>
+              )}
+              <button
+                onClick={() => setKeyboardHelpOpen(true)}
+                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                title="Keyboard shortcuts (?)"
+              >
+                <Keyboard className="w-5 h-5" />
+              </button>
+              <button
+                onClick={handleExportCSV}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors border border-border rounded-lg hover:bg-accent"
+                title="Export to CSV"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Stats */}
@@ -270,11 +389,21 @@ export default function MissionControl() {
                   </span>
                 </h2>
                 <div className="grid gap-4">
-                  {statusItems.map((item) => (
+                  {statusItems.map((item, index) => (
                     <div
                       key={item.id}
-                      className={`bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors cursor-pointer`}
-                      onClick={() => setSelectedItem(item)}
+                      ref={(el: HTMLDivElement | null) => {
+                        itemRefs.current[item.id] = el;
+                      }}
+                      className={`bg-card border border-border rounded-lg p-4 transition-all cursor-pointer ${
+                        filteredItems[selectedIndex]?.id === item.id
+                          ? "ring-2 ring-primary border-primary/50"
+                          : "hover:border-primary/50"
+                      }`}
+                      onClick={() => {
+                        setSelectedItem(item);
+                        setSelectedIndex(filteredItems.findIndex((i) => i.id === item.id));
+                      }}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -345,6 +474,44 @@ export default function MissionControl() {
             );
           })}
         </div>
+
+        {/* Keyboard Shortcuts Modal */}
+        {keyboardHelpOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-card border border-border rounded-lg w-full max-w-md p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+                  <Zap className="w-5 h-5" />
+                  Keyboard Shortcuts
+                </h2>
+                <button
+                  onClick={() => setKeyboardHelpOpen(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { key: "j / ↓", action: "Next item" },
+                  { key: "k / ↑", action: "Previous item" },
+                  { key: "Enter", action: "View item details" },
+                  { key: "n", action: "Add new item" },
+                  { key: "Esc", action: "Close modal/drawer" },
+                  { key: "?", action: "Show this help" },
+                ].map(({ key, action }) => (
+                  <div key={key} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+                    <span className="text-muted-foreground">{action}</span>
+                    <kbd className="px-2 py-1 bg-accent rounded text-sm font-mono">{key}</kbd>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 text-xs text-muted-foreground text-center">
+                Press any key to dismiss
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Add Item Modal */}
         {showAddModal && (
