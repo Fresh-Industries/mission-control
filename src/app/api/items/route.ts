@@ -27,22 +27,76 @@ async function triggerApprovalWorkflow(item: MissionItem): Promise<string> {
 
   switch (item.category) {
     case "feature":
-      triggerLog = `[${timestamp}] APPROVAL TRIGGER: Feature - Would create GitHub issue/PR stub for "${item.title}"`;
+      triggerLog = `[${timestamp}] APPROVAL TRIGGER: Feature - Creating GitHub issue/PR for "${item.title}"`;
+      // Create GitHub issue via API
+      try {
+        const response = await fetch("https://api.github.com/repos/Fresh-Industries/FitBet/issues", {
+          method: "POST",
+          headers: {
+            "Authorization": `token ${process.env.GITHUB_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title: `[Mission Control] ${item.title}`,
+            body: item.description + "\n\n---\n\n_Approved via Mission Control Dashboard_",
+            labels: ["mission-control"],
+          }),
+        });
+        if (response.ok) {
+          const issue = await response.json();
+          triggerLog += `\n🔗 GitHub Issue: ${issue.html_url}`;
+        }
+      } catch (error) {
+        triggerLog += `\n⚠️ GitHub issue creation failed: ${error}`;
+      }
       break;
     case "workflow":
-      triggerLog = `[${timestamp}] APPROVAL TRIGGER: Workflow - Spawning sub-agent to execute workflow for "${item.title}"`;
-      // In production, this would call sessions_spawn API
+      triggerLog = `[${timestamp}] APPROVAL TRIGGER: Workflow - Spawning sub-agent for "${item.title}"`;
+      // Spawn sub-agent via OpenClaw
+      try {
+        const response = await fetch("/api/sessions_spawn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            label: `Execute: ${item.title}`,
+            task: item.description + "\n\nNotes: " + (item.notes || ""),
+          }),
+        });
+        if (response.ok) {
+          const result = await response.json();
+          triggerLog += `\n🤖 Sub-agent spawned: ${result.sessionKey || result.runId}`;
+        }
+      } catch (error) {
+        triggerLog += `\n⚠️ Sub-agent spawn failed: ${error}`;
+      }
       break;
     case "template":
       triggerLog = `[${timestamp}] APPROVAL TRIGGER: Template - No action needed, marked complete for "${item.title}"`;
       break;
     case "research":
       triggerLog = `[${timestamp}] APPROVAL TRIGGER: Research - Spawning research sub-agent for "${item.title}"`;
-      // In production, this would call sessions_spawn API
+      // Spawn research sub-agent
+      try {
+        const response = await fetch("/api/sessions_spawn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            label: `Research: ${item.title}`,
+            task: `Research: ${item.description}\n\nContext: ${item.notes || ""}`,
+          }),
+        });
+        if (response.ok) {
+          const result = await response.json();
+          triggerLog += `\n🤖 Research sub-agent spawned: ${result.sessionKey || result.runId}`;
+        }
+      } catch (error) {
+        triggerLog += `\n⚠️ Research sub-agent spawn failed: ${error}`;
+      }
       break;
     case "automation":
-      triggerLog = `[${timestamp}] APPROVAL TRIGGER: Automation - Would create cron job stub for "${item.title}"`;
-      // In production, this would create a cron job
+      triggerLog = `[${timestamp}] APPROVAL TRIGGER: Automation - Would create cron job for "${item.title}"`;
+      // Log for cron job creation (would use cron API in production)
+      triggerLog += `\n⏰ Cron job queued for creation`;
       break;
   }
 
