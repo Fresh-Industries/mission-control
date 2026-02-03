@@ -2,31 +2,55 @@ import { NextResponse } from "next/server";
 import { getItems, updateItemStatus, addItem } from "@/data/items";
 
 export async function GET() {
-  const items = getItems();
-  return NextResponse.json(items);
+  try {
+    const items = await getItems();
+    return NextResponse.json(items);
+  } catch (error) {
+    console.error("Database error:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch items" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function PATCH(request: Request) {
-  const body = await request.json();
-  const { id, status } = body;
+  try {
+    const body = await request.json();
+    const { id, status } = body;
 
-  if (!id || !status) {
+    if (!id || !status) {
+      return NextResponse.json(
+        { error: "Missing id or status" },
+        { status: 400 }
+      );
+    }
+
+    const item = await updateItemStatus(id, status);
+    if (!item) {
+      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(item);
+  } catch (error) {
+    console.error("Database error:", error);
     return NextResponse.json(
-      { error: "Missing id or status" },
-      { status: 400 }
+      { error: "Failed to update item" },
+      { status: 500 }
     );
   }
-
-  const item = updateItemStatus(id, status);
-  if (!item) {
-    return NextResponse.json({ error: "Item not found" }, { status: 404 });
-  }
-
-  return NextResponse.json(item);
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const item = addItem(body);
-  return NextResponse.json(item, { status: 201 });
+  try {
+    const body = await request.json();
+    const item = await addItem(body);
+    return NextResponse.json(item, { status: 201 });
+  } catch (error) {
+    console.error("Database error:", error);
+    return NextResponse.json(
+      { error: "Failed to create item" },
+      { status: 500 }
+    );
+  }
 }
