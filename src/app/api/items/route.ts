@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getItems, updateItemStatus, addItem, updateItemNotes } from "@/data/items";
+import { getItems, updateItemStatus, addItem, updateItemNotes, updateItem, deleteItem } from "@/data/items";
 import { getDb } from "@/lib/db";
 import { seedDatabase } from "@/lib/seed";
 import type { MissionItem } from "@/lib/schema";
@@ -179,6 +179,38 @@ export async function POST(request: Request) {
   try {
     await ensureSeeded();
     const body = await request.json();
+    
+    // Handle bulk operations
+    if (body.action === "bulkStatus" && body.ids && body.status) {
+      const updated = await Promise.all(
+        body.ids.map((id: string) => updateItemStatus(id, body.status))
+      );
+      // Trigger workflows for approved items
+      for (const item of updated.filter(Boolean)) {
+        if (item && body.status === "approved") {
+          const triggerLog = await triggerApprovalWorkflow(item);
+          const currentNotes = item.notes || "";
+          const updatedNotes = currentNotes
+            ? `${currentNotes}\n\n${triggerLog}`
+            : triggerLog;
+          await updateItemNotes(item.id, updatedNotes);
+        }
+      }
+      return NextResponse.json({ success: true, count: updated.length });
+    }
+    
+    if (body.action === "delete" && body.id) {
+      const success = await deleteItem(body.id);
+      return NextResponse.json({ success });
+    }
+    
+    if (body.action === "update" && body.id) {
+      const { id, action, ...updateData } = body;
+      const item = await updateItem(id, updateData);
+      return NextResponse.json(item);
+    }
+    
+    // Default: create new item
     const item = await addItem(body);
     return NextResponse.json(item, { status: 201 });
   } catch (error) {

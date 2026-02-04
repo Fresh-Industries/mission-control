@@ -13,6 +13,11 @@ import {
   Download,
   Keyboard,
   Zap,
+  Trash2,
+  CheckSquare,
+  Square,
+  Filter,
+  TrendingUp,
 } from "lucide-react";
 import { ItemDetailDrawer } from "@/components/ItemDetailDrawer";
 
@@ -88,6 +93,7 @@ export default function MissionControl() {
   const [items, setItems] = useState<MissionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Status | "all">("all");
+  const [categoryFilter, setCategoryFilter] = useState<Category | "all">("all");
   const [search, setSearch] = useState("");
   const [selectedItem, setSelectedItem] = useState<MissionItem | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -100,6 +106,8 @@ export default function MissionControl() {
   const [submitting, setSubmitting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [keyboardHelpOpen, setKeyboardHelpOpen] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const itemRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -165,12 +173,100 @@ export default function MissionControl() {
     }
   };
 
+  // Toggle item selection
+  const toggleSelectItem = (id: string) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  // Select all visible items
+  const selectAllVisible = () => {
+    if (selectedItems.size === filteredItems.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(filteredItems.map((i) => i.id)));
+    }
+  };
+
+  // Bulk approve
+  const handleBulkApprove = async () => {
+    if (selectedItems.size === 0) return;
+    setBulkActionLoading(true);
+    try {
+      await fetch("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "bulkStatus",
+          ids: Array.from(selectedItems),
+          status: "approved",
+        }),
+      });
+      setSelectedItems(new Set());
+      fetchItems();
+    } catch (error) {
+      console.error("Failed to bulk approve:", error);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  // Bulk reject
+  const handleBulkReject = async () => {
+    if (selectedItems.size === 0) return;
+    setBulkActionLoading(true);
+    try {
+      await fetch("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "bulkStatus",
+          ids: Array.from(selectedItems),
+          status: "rejected",
+        }),
+      });
+      setSelectedItems(new Set());
+      fetchItems();
+    } catch (error) {
+      console.error("Failed to bulk reject:", error);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  // Delete selected
+  const handleBulkDelete = async () => {
+    if (selectedItems.size === 0) return;
+    setBulkActionLoading(true);
+    try {
+      for (const id of selectedItems) {
+        await fetch("/api/items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "delete", id }),
+        });
+      }
+      setSelectedItems(new Set());
+      fetchItems();
+    } catch (error) {
+      console.error("Failed to bulk delete:", error);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
   const filteredItems = items.filter((item) => {
     const matchesFilter = filter === "all" || item.status === filter;
+    const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
     const matchesSearch =
       item.title.toLowerCase().includes(search.toLowerCase()) ||
       item.description.toLowerCase().includes(search.toLowerCase());
-    return matchesFilter && matchesSearch;
+    return matchesFilter && matchesCategory && matchesSearch;
   });
 
   // Export to CSV
@@ -240,12 +336,30 @@ export default function MissionControl() {
           e.preventDefault();
           setKeyboardHelpOpen(true);
           break;
+        case " ":
+          e.preventDefault();
+          if (allItems[currentIndex]) {
+            toggleSelectItem(allItems[currentIndex].id);
+          }
+          break;
+        case "a":
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            handleBulkApprove();
+          }
+          break;
+        case "r":
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            handleBulkReject();
+          }
+          break;
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [filteredItems, selectedIndex]);
+  }, [filteredItems, selectedIndex, selectedItems]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -261,6 +375,15 @@ export default function MissionControl() {
   const pendingItems = items.filter((i) => i.status === "pending");
   const inProgressItems = items.filter((i) => i.status === "in-progress");
   const approvedItems = items.filter((i) => i.status === "approved");
+
+  // Category stats
+  const categoryStats = {
+    feature: items.filter((i) => i.category === "feature").length,
+    workflow: items.filter((i) => i.category === "workflow").length,
+    template: items.filter((i) => i.category === "template").length,
+    research: items.filter((i) => i.category === "research").length,
+    automation: items.filter((i) => i.category === "automation").length,
+  };
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -302,7 +425,7 @@ export default function MissionControl() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-5 gap-4 mb-8">
           <div className="bg-card border border-border rounded-lg p-4">
             <div className="text-2xl font-bold text-orange-500">
               {pendingItems.length}
@@ -320,6 +443,12 @@ export default function MissionControl() {
               {approvedItems.length}
             </div>
             <div className="text-sm text-muted-foreground">Approved</div>
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4">
+            <div className="text-2xl font-bold text-purple-500">
+              {categoryStats.feature}
+            </div>
+            <div className="text-sm text-muted-foreground">Features</div>
           </div>
           <div className="bg-card border border-border rounded-lg p-4">
             <div className="text-2xl font-bold text-foreground">
@@ -352,6 +481,19 @@ export default function MissionControl() {
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value as Category | "all")}
+            className="bg-card border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            title="Filter by category"
+          >
+            <option value="all">All Categories</option>
+            <option value="feature">Features</option>
+            <option value="workflow">Workflows</option>
+            <option value="template">Templates</option>
+            <option value="research">Research</option>
+            <option value="automation">Automation</option>
+          </select>
           <button
             onClick={() => setShowAddModal(true)}
             className="bg-primary text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary/90"
@@ -360,6 +502,42 @@ export default function MissionControl() {
             Add Item
           </button>
         </div>
+
+        {/* Bulk Actions Bar */}
+        {selectedItems.size > 0 && (
+          <div className="bg-primary/10 border border-primary/30 rounded-lg px-4 py-3 mb-6 flex items-center justify-between">
+            <span className="text-sm text-foreground">
+              <CheckSquare className="w-4 h-4 inline mr-2" />
+              {selectedItems.size} item{selectedItems.size !== 1 ? "s" : ""} selected
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={handleBulkApprove}
+                disabled={bulkActionLoading}
+                className="bg-green-500/20 text-green-500 px-3 py-1.5 rounded text-sm hover:bg-green-500/30 disabled:opacity-50 flex items-center gap-1"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Approve
+              </button>
+              <button
+                onClick={handleBulkReject}
+                disabled={bulkActionLoading}
+                className="bg-red-500/20 text-red-500 px-3 py-1.5 rounded text-sm hover:bg-red-500/30 disabled:opacity-50 flex items-center gap-1"
+              >
+                <X className="w-4 h-4" />
+                Reject
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkActionLoading}
+                className="bg-muted text-muted-foreground px-3 py-1.5 rounded text-sm hover:bg-red-500/20 hover:text-red-500 disabled:opacity-50 flex items-center gap-1"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Loading indicator */}
         {loading && (
@@ -388,6 +566,19 @@ export default function MissionControl() {
                     ({statusItems.length})
                   </span>
                 </h2>
+                <div className="flex items-center gap-2 mb-2">
+                  <button
+                    onClick={selectAllVisible}
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                  >
+                    {selectedItems.size === filteredItems.length ? (
+                      <CheckSquare className="w-3 h-3" />
+                    ) : (
+                      <Square className="w-3 h-3" />
+                    )}
+                    Select all in section
+                  </button>
+                </div>
                 <div className="grid gap-4">
                   {statusItems.map((item, index) => (
                     <div
@@ -396,8 +587,10 @@ export default function MissionControl() {
                         itemRefs.current[item.id] = el;
                       }}
                       className={`bg-card border border-border rounded-lg p-4 transition-all cursor-pointer ${
-                        filteredItems[selectedIndex]?.id === item.id
-                          ? "ring-2 ring-primary border-primary/50"
+                        selectedItems.has(item.id)
+                          ? "ring-2 ring-primary border-primary/50 bg-primary/5"
+                          : filteredItems[selectedIndex]?.id === item.id
+                          ? "ring-2 ring-primary/50 border-primary/30"
                           : "hover:border-primary/50"
                       }`}
                       onClick={() => {
@@ -406,30 +599,45 @@ export default function MissionControl() {
                       }}
                     >
                       <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span
-                              className={`text-xs px-2 py-0.5 rounded-full ${
-                                categoryColors[item.category]
-                              }`}
-                            >
-                              {item.category}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {item.updated}
-                            </span>
-                          </div>
-                          <h3 className="font-semibold text-foreground mb-1">
-                            {item.title}
-                          </h3>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {item.description}
-                          </p>
-                          {item.notes && (
-                            <p className="text-xs text-muted-foreground italic">
-                              {item.notes}
+                        <div className="flex items-start gap-3">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSelectItem(item.id);
+                            }}
+                            className="mt-1 text-muted-foreground hover:text-foreground"
+                          >
+                            {selectedItems.has(item.id) ? (
+                              <CheckSquare className="w-4 h-4 text-primary" />
+                            ) : (
+                              <Square className="w-4 h-4" />
+                            )}
+                          </button>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span
+                                className={`text-xs px-2 py-0.5 rounded-full ${
+                                  categoryColors[item.category]
+                                }`}
+                              >
+                                {item.category}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {item.updated}
+                              </span>
+                            </div>
+                            <h3 className="font-semibold text-foreground mb-1">
+                              {item.title}
+                            </h3>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              {item.description}
                             </p>
-                          )}
+                            {item.notes && (
+                              <p className="text-xs text-muted-foreground italic">
+                                {item.notes}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 ml-4">
                           {item.status === "pending" && (
@@ -495,7 +703,10 @@ export default function MissionControl() {
                 {[
                   { key: "j / ↓", action: "Next item" },
                   { key: "k / ↑", action: "Previous item" },
+                  { key: "Space", action: "Toggle selection" },
                   { key: "Enter", action: "View item details" },
+                  { key: "a", action: "Bulk approve selected" },
+                  { key: "r", action: "Bulk reject selected" },
                   { key: "n", action: "Add new item" },
                   { key: "Esc", action: "Close modal/drawer" },
                   { key: "?", action: "Show this help" },
