@@ -58,3 +58,43 @@ export async function updateItemNotes(
     .returning();
   return updated[0] || null;
 }
+
+export async function updateItem(
+  id: string,
+  data: Partial<Omit<MissionItem, "id" | "createdAt" | "updatedAt">>
+): Promise<MissionItem | null> {
+  const updated = await db
+    .update(missionItems)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(missionItems.id, id))
+    .returning();
+  return updated[0] || null;
+}
+
+export async function deleteItem(id: string): Promise<boolean> {
+  const deleted = await db
+    .delete(missionItems)
+    .where(eq(missionItems.id, id))
+    .returning();
+  return deleted.length > 0;
+}
+
+export async function bulkUpdateStatus(
+  ids: string[],
+  status: MissionItem["status"]
+): Promise<number> {
+  const result = await db
+    .update(missionItems)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(missionItems.status, "pending")) // Only affect pending items
+    .returning();
+  return result.length;
+}
+
+export async function bulkDelete(ids: string[]): Promise<number> {
+  const result = await db
+    .delete(missionItems)
+    .where(eq(missionItems.status, "rejected")) // Only delete rejected items
+    .returning();
+  return result.length;
+}
