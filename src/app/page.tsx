@@ -18,8 +18,11 @@ import {
   Square,
   Filter,
   TrendingUp,
+  BarChart3,
+  List,
 } from "lucide-react";
 import { ItemDetailDrawer } from "@/components/ItemDetailDrawer";
+import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 
 // Types
 type Status = "pending" | "in-progress" | "approved" | "rejected";
@@ -110,6 +113,7 @@ export default function MissionControl() {
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const itemRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [activeTab, setActiveTab] = useState<"items" | "analytics">("items");
 
   // Fetch items from API
   const fetchItems = useCallback(async () => {
@@ -400,32 +404,70 @@ export default function MissionControl() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              {lastUpdated && (
+              {/* Tab Switcher */}
+              <div className="flex items-center bg-card border border-border rounded-lg p-1">
+                <button
+                  onClick={() => setActiveTab("items")}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    activeTab === "items"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <List className="w-4 h-4" />
+                  Items
+                </button>
+                <button
+                  onClick={() => setActiveTab("analytics")}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    activeTab === "analytics"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  Analytics
+                </button>
+              </div>
+              
+              {activeTab === "items" && lastUpdated && (
                 <span className="text-xs text-muted-foreground">
                   Last updated: {lastUpdated.toLocaleTimeString()}
                 </span>
               )}
-              <button
-                onClick={() => setKeyboardHelpOpen(true)}
-                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
-                title="Keyboard shortcuts (?)"
-              >
-                <Keyboard className="w-5 h-5" />
-              </button>
-              <button
-                onClick={handleExportCSV}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors border border-border rounded-lg hover:bg-accent"
-                title="Export to CSV"
-              >
-                <Download className="w-4 h-4" />
-                Export
-              </button>
+              {activeTab === "items" && (
+                <button
+                  onClick={() => setKeyboardHelpOpen(true)}
+                  className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                  title="Keyboard shortcuts (?)"
+                >
+                  <Keyboard className="w-5 h-5" />
+                </button>
+              )}
+              {activeTab === "items" && (
+                <button
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors border border-border rounded-lg hover:bg-accent"
+                  title="Export to CSV"
+                >
+                  <Download className="w-4 h-4" />
+                  Export
+                </button>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-5 gap-4 mb-8">
+        {/* Analytics Tab */}
+        {activeTab === "analytics" && (
+          <AnalyticsDashboard items={items} />
+        )}
+
+        {/* Items Tab */}
+        {activeTab === "items" && (
+          <>
+            {/* Stats */}
+            <div className="grid grid-cols-5 gap-4 mb-8">
           <div className="bg-card border border-border rounded-lg p-4">
             <div className="text-2xl font-bold text-orange-500">
               {pendingItems.length}
@@ -682,6 +724,8 @@ export default function MissionControl() {
             );
           })}
         </div>
+          </>
+        )}
 
         {/* Keyboard Shortcuts Modal */}
         {keyboardHelpOpen && (
